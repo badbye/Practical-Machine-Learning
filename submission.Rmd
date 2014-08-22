@@ -1,0 +1,88 @@
+---
+title: "Practical Machine Learning"
+author: "yaleidu"
+date: "2014年08月22日"
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+require(knitr)
+opts_chunk$set(echo=T, eval=T, message=F, warnings=F)
+```
+
+
+## Overlook Data
+
+```{r loadData}
+training = read.csv('pml-training.csv')[, -1]
+testing = read.csv('pml-testing.csv')[, -1]
+### as the csv file contains rownames which is useless,
+### so I directly remove the first columm when loading.
+```
+
+There are `r nrow(training)` samples and `r ncol(training)` variables in the training dataset(pml-training.csv). Sadly, only `r sum(complete.cases(training))` samples have no missing value, which means almost all the samples have at least one missing value, which is annoying.
+
+As we are going to predict the `classe` variable, let's have a look at its emprical distribution in the training data:
+
+```{r dis}
+table(training$classe);
+barplot(sort(table(training$classe), decreasing = T), 
+        col=rainbow(5), main='Fig1: Emprical distribution of Classe')
+```
+It's almost evenly distributed, except that the group `A` is much more than other groups. 
+
+
+
+## Preprocessing
+After have a look at the data, before build a model we should do some prepocess, which need us to look explore the data deeper.
+
+### Near Zore Variables
+At the beginning, explore whether there are some `near zero variables` in the predictors, namely predictors that have one unique value (i.e. are zero variance predictors) or predictors that are have both of the following characteristics: they have very few unique values relative to the number of samples and the ratio of the frequency of the most common value to the frequency of the second most common value is large.
+
+```{r}
+library(caret)
+zeroVar = nearZeroVar(training)
+training = training[, -c(zeroVar)]
+testing = testing[, -c(zeroVar)]
+```
+
+Here, I simply use `nearZeroVar` function in the `caret` package, and remove the returned column. Then the training have `r ncol(training)` column left.
+
+### Missing values
+As metioned in the first step, alomst all the samples have missing values. 
+
+```{r miss}
+require(plyr)
+miss_var = as.vector(as.matrix(colwise(function(x) any(is.na(x)))(training)))
+train_data = training[, !miss_var]
+test_data = testing[, !miss_var]
+```
+
+After check out each predict, I find out there are `sum(miss_var)` predictors have missing values, which is hard to fill in. So I just remove all these `sum(miss_var)` variables.
+
+### Dummy variables
+
+
+## Modeling
+After have overlook and preprocess thes data, it's time to build a model.As there are many missing values in the dataset, I choose the Random Forest model, which is much more powful than simple trees. In terms of Boosting like GBM, which is also very powerful, but not allowed any missing values.
+
+```{r model}
+# pre_pca = preProcess(train_data[, -58], method='pca')
+model = train(classe ~ ., data=train_data, method='rf')
+```
+
+
+
+require(randomForest)
+
+```{r}
+randomForest(classe ~ ., data = train_data)
+```
+
+
+```{r knn-missing-value}
+factor_var = sapply(training, class) == 'factor'  
+knn_missing = preProcess(training[, !factor_var], methods='knnImpute')
+training[, !factor_var] = predict(knn_missing, training[, !factor_var])
+```
+
