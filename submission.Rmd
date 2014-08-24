@@ -1,13 +1,13 @@
 ---
 title: "Practical Machine Learning"
 author: "yaleidu"
-date: "2014年08月22日"
+date: "2014-08-22"
 output: html_document
 ---
 
-```{r setup, echo=FALSE}
+```{r setup, echo=FALSE, message=FALSE}
 require(knitr)
-opts_chunk$set(echo=T, eval=T, message=F, warnings=F)
+opts_chunk$set(echo=T, eval=T, message=F, warnings=F, cache=T, comment=NA)
 ```
 
 
@@ -29,6 +29,7 @@ table(training$classe);
 barplot(sort(table(training$classe), decreasing = T), 
         col=rainbow(5), main='Fig1: Emprical distribution of Classe')
 ```
+
 It's almost evenly distributed, except that the group `A` is much more than other groups. 
 
 
@@ -58,31 +59,33 @@ train_data = training[, !miss_var]
 test_data = testing[, !miss_var]
 ```
 
-After check out each predict, I find out there are `sum(miss_var)` predictors have missing values, which is hard to fill in. So I just remove all these `sum(miss_var)` variables.
-
-### Dummy variables
+After check out each predict, I find out there are `sum(miss_var)` predictors have missing values, which is hard to fill in. So I just remove all these `sum(miss_var)` variables, left `r ncol(train_data)` variables.
 
 
 ## Modeling
-After have overlook and preprocess thes data, it's time to build a model.As there are many missing values in the dataset, I choose the Random Forest model, which is much more powful than simple trees. In terms of Boosting like GBM, which is also very powerful, but not allowed any missing values.
+After have overlook and preprocess thes data, it's time to build a model.As there are many missing values in the dataset, I choose the Random Forest model, which is much more powful than simple trees. 
 
 ```{r model}
-# pre_pca = preProcess(train_data[, -58], method='pca')
-model = train(classe ~ ., data=train_data, method='rf')
-```
+factor_var = sapply(train_data, class) == 'factor'
+train_data[, !factor_var] = colwise(as.numeric)(train_data[, !factor_var])
+test_data[, !factor_var] = colwise(as.numeric)(test_data[, !factor_var])
 
-
-
+tag = rep(c('train', 'test'), c(nrow(train_data), nrow(test_data)))
+colnames(test_data) = colnames(train_data)
+test_data$classe = 'A'
+all_data = rbind(train_data, test_data)
+set.seed(123)
 require(randomForest)
-
-```{r}
-randomForest(classe ~ ., data = train_data)
+model = randomForest(classe ~ ., data=all_data[tag == 'train', ])
+model
 ```
 
+As we can see, the OOB(out of bag) estimate of error rate is `r model$err.rate[500, 1]`. This is also the expected out of sample error.
 
-```{r knn-missing-value}
-factor_var = sapply(training, class) == 'factor'  
-knn_missing = preProcess(training[, !factor_var], methods='knnImpute')
-training[, !factor_var] = predict(knn_missing, training[, !factor_var])
+## Predict
+At last, given the test data, make a prediction.
+```{r predict}
+pre = predict(model, newdata=all_data[tag == 'test', ])
+as.character(pre)
 ```
 
